@@ -23,4 +23,8 @@ depends: [
   "io-page"        {>= "1.0.1"}
   "result"
 ]
+depexts: [
+  [["alpine"] ["linux-headers"]]
+]
+
 available: [ ocaml-version >= "4.02.3"]
