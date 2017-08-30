@@ -103,7 +103,7 @@ let rec read t page =
           let buf = Cstruct.sub buf 0 len in
           Ok buf)
       (function
-        | Unix.Unix_error(Unix.ENXIO, _, _) ->
+        | Unix.Unix_error(Unix.ENXIO, _, _) | Unix.Unix_error(Unix.ENETDOWN, _, _) ->
           log "[read] device %s is down, stopping" t.id;
           Lwt.return (Error `Disconnected)
         | Lwt.Canceled ->
