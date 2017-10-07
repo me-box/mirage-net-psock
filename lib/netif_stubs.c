@@ -38,7 +38,7 @@ psoc_raise_error(char *prefix, int fd)
 }
 
 static int
-connect_interface(char *dev, char *mac)
+connect_interface(char *dev, char *mac, int *mtu)
 {
   //ifreq has union type field
   struct ifreq ifr;
@@ -60,6 +60,10 @@ connect_interface(char *dev, char *mac)
   else
     memcpy(mac, ifr.ifr_hwaddr.sa_data, 6);
 
+  if (ioctl(fd, SIOCGIFMTU, &ifr) < 0)
+    psoc_raise_error("ifmtu", fd);
+  else
+    *mtu = ifr.ifr_mtu;
 
   sll.sll_family = AF_PACKET;
   sll.sll_protocol = htons(ETH_P_ALL);
@@ -78,12 +82,13 @@ psoc_open(value devname)
 
   char dev[IFNAMSIZ];
   char mac[6], mac_str[18];
+  int mtu;
   int fd;
 
   memset(dev, 0, sizeof dev);
   memcpy(dev, String_val(devname), caml_string_length(devname));
 
-  fd = connect_interface(dev, mac);
+  fd = connect_interface(dev, mac, &mtu);
 
   char *alpha = "0123456789abcdef";
   for (int i = 0; i < sizeof mac; i++) {
@@ -94,11 +99,12 @@ psoc_open(value devname)
   }
   mac_str[17] = 0;
 
-  res = caml_alloc_tuple(2);
+  res = caml_alloc_tuple(3);
   mac_caml = caml_copy_string(mac_str);
 
   Store_field(res, 0, Val_int(fd));
   Store_field(res, 1, mac_caml);
+  Store_field(res, 2, Val_int(mtu));
 
   CAMLreturn(res);
 }

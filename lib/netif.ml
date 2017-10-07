@@ -19,7 +19,7 @@
 open Result
 open Mirage_net
 
-external open_packet_sock : string -> Unix.file_descr * string = "psoc_open"
+external open_packet_sock : string -> Unix.file_descr * string * int = "psoc_open"
 
 
 let log fmt = Format.printf ("Netif: " ^^ fmt ^^ "\n%!")
@@ -34,10 +34,12 @@ type t = {
   dev: Lwt_unix.file_descr;
   mutable active: bool;
   mutable mac: Macaddr.t;
+  mtu: int;
   stats : Mirage_net.stats;
 }
 
 let fd t = t.dev
+let mtu t = t.mtu
 
 type error = [
   | Mirage_net.error
@@ -62,13 +64,13 @@ let err_permission_denied devname =
 let connect devname =
   try
     Random.self_init ();
-    let fd, mac_raw = open_packet_sock devname in
+    let fd, mac_raw, mtu  = open_packet_sock devname in
     let dev = Lwt_unix.of_unix_file_descr ~blocking:true fd in
     let mac = Macaddr.of_string_exn mac_raw in
     log "plugging into %s with mac %s" devname (Macaddr.to_string mac);
     let active = true in
     let t = {
-      id=devname; dev; active; mac;
+      id=devname; dev; active; mac; mtu;
       stats= { rx_bytes=0L;rx_pkts=0l; tx_bytes=0L; tx_pkts=0l } }
     in
     Hashtbl.add devices devname t;

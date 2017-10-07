@@ -24,3 +24,6 @@ val connect : string -> t Lwt.t
 
 val fd: t -> Lwt_unix.file_descr
 (** [fd t] is [t]'s underneath file descriptor. *)
+
+val mtu: t -> int
+(** [mtu t] is the MTU imposed by the link underneath. *)
