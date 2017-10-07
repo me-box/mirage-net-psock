@@ -4,4 +4,5 @@
   (public_name mirage-net-psock)
   (libraries  (io-page-unix cstruct cstruct-lwt lwt.unix ipaddr mirage-net-lwt result))
   (c_names    (netif_stubs))
+  (wrapped    false)
 ))
