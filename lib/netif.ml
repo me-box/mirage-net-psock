@@ -77,7 +77,7 @@ let connect devname =
     log "connect %s" devname;
     Lwt.return t
   with
-  | Failure "tun[open]: Permission denied" ->
+  | Failure "dev[open]: Permission denied" ->
     Lwt.fail_with (err_permission_denied devname)
   | exn -> Lwt.fail exn
 

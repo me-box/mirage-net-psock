@@ -1,6 +1,7 @@
 (*
  * Copyright (C) 2013-2015 Anil Madhavapeddy <anil@recoil.org>
  * Copyright (C) 2015      Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2017      Qi Li             <ql272@cam.ac.uk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,7 +21,7 @@
 include Mirage_net_lwt.S
 
 val connect : string -> t Lwt.t
-(** [connect tap] connects to the given tap interface. *)
+(** [connect dev] connects to the given network interface [dev]. *)
 
 val fd: t -> Lwt_unix.file_descr
 (** [fd t] is [t]'s underneath file descriptor. *)

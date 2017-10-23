@@ -1,12 +1,11 @@
 ### Mirage-net-psock
-A mirage network device alternative for usage targetting unix.
+This is an alternate mirage network device to use when building unikerels in unix.
 
-Instead of plugging into a tap device, this implementation opens [a packet socket](../master/lib/netif_stubs.c#L49) providing the interface's name.
+#### Difference comparing to mirage-net-unix
+Inside mirage-net-unix, a network device is created by opening a tap device, whereas in mirage-net-psock, by calling sockets API and opening a raw socket, one would get a network device directly sending to/receving from a network interface.
 
-#### How to use:
-```
-git clone https://github.com/sevenEng/mirage-net-psock.git
-cd mirage-net-psock
-opam pin -y add mirage-net-unix .
-```
-Then in the unikernel's config file, provide the network interface's name to [`netif`](https://github.com/mirage/mirage/blob/master/lib/mirage.mli) to get a working network device.
+#### Why you may want to use this
+For the obvious, if you want to access traffic directly from network interfaces. It's possbile to do the same with standard mirage-net-unix, however, usually it involves extra local host network configuration: setting up linux bridges, connecting interfaces, and probably setting up NAT rules using iptables utilities. But with mirage-net-psock, calling [`connect`](https://github.com/me-box/mirage-net-psock/blob/master/lib/netif.mli#L22) with the intended interface name in your code will just do you the same. As it fulfills the `ETHIF` signature, you could easily build you own network stacks over it and be ready to talk to the outside world.
+
+#### Use case inside Databox project
+This tool lays the ground for [me-box/core-network](https://github.com/me-box/core-network) component, which is responsible for managing the communications between different containers within Databox. After Databox is started, containers are created/removed dynamically, so do the dedicated networks that they are attached to. `core-network` will always have an interface on these networks so that it could sit in the middle and control/monitor the traffic flows. `mirage-net-psock` facilitates the reaction to all the interface-up/-down events for `core-network`.
