@@ -16,16 +16,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Result
+open Lwt.Infix
+
+[@@@warning "-52"]
 open Mirage_net
 
 external open_packet_sock : string -> Unix.file_descr * string * int = "psoc_open"
 
-
 let log fmt = Format.printf ("Netif: " ^^ fmt ^^ "\n%!")
-
-let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
 
 type +'a io = 'a Lwt.t
 
@@ -42,13 +40,13 @@ let fd t = t.dev
 let mtu t = t.mtu
 
 type error = [
-  | Mirage_net.error
+  | Mirage_net.Net.error
   | `Partial of string * int * Cstruct.t
   | `Exn of exn
 ]
 
 let pp_error ppf = function
-  | #Mirage_net.error as e -> Mirage_net.pp_error ppf e
+  | #Mirage_net.Net.error as e -> Mirage_net.Net.(pp_error ppf e)
   | `Partial (id, len', buffer) ->
     Fmt.pf ppf "netif %s: partial write (%d, expected %d)"
       id len' buffer.Cstruct.len
@@ -63,23 +61,24 @@ let err_permission_denied devname =
 
 let connect devname =
   try
-    Random.self_init ();
-    let fd, mac_raw, mtu  = open_packet_sock devname in
-    let dev = Lwt_unix.of_unix_file_descr ~blocking:true fd in
-    let mac = Macaddr.of_string_exn mac_raw in
-    log "plugging into %s with mac %s" devname (Macaddr.to_string mac);
-    let active = true in
-    let t = {
-      id=devname; dev; active; mac; mtu;
-      stats= { rx_bytes=0L;rx_pkts=0l; tx_bytes=0L; tx_pkts=0l } }
-    in
-    Hashtbl.add devices devname t;
-    log "connect %s" devname;
-    Lwt.return t
-  with
-  | Failure "dev[open]: Permission denied" ->
-    Lwt.fail_with (err_permission_denied devname)
-  | exn -> Lwt.fail exn
+     Random.self_init ();
+     let fd, mac_raw, mtu  = open_packet_sock devname in
+     let dev = Lwt_unix.of_unix_file_descr ~blocking:true fd in
+     let mac = Macaddr.of_string_exn mac_raw in
+     log "plugging into %s with mac %s" devname (Macaddr.to_string mac);
+     let active = true in
+     let t = {
+       id=devname; dev; active; mac; mtu;
+       stats= { rx_bytes=0L;rx_pkts=0l; tx_bytes=0L; tx_pkts=0l } }
+     in
+     Hashtbl.add devices devname t;
+     log "connect %s" devname;
+     Lwt.return t
+   with
+   | Failure "dev[open]: Permission denied"[@ocaml.warning "-52"]
+     ->
+     Lwt.fail_with (err_permission_denied devname)
+   | exn -> Lwt.fail exn
 
 let disconnect t =
   log "disconnect %s" t.id;
@@ -88,12 +87,10 @@ let disconnect t =
 
 
 type macaddr = Macaddr.t
-type page_aligned_buffer = Io_page.t
 type buffer = Cstruct.t
 
 (* Input a frame, and block if nothing is available *)
-let rec read t page =
-  let buf = Io_page.to_cstruct page in
+let rec read t buf =
   let process () =
     Lwt.catch (fun () ->
         Lwt_cstruct.read t.dev buf >|= function
@@ -116,7 +113,7 @@ let rec read t page =
           Lwt.return (Error `Continue))
   in
   process () >>= function
-  | Error `Continue -> read t page
+  | Error `Continue -> read t buf
   | Error `Canceled -> Lwt.return (Error `Canceled)
   | Error `Disconnected -> Lwt.return (Error `Disconnected)
   | Ok buf -> Lwt.return (Ok buf)
@@ -133,40 +130,37 @@ let safe_apply f x =
 (* this function has to be tail recursive, since it is called at the
    top level, otherwise memory of received packets and all reachable
    data is never claimed.  take care when modifying, here be dragons! *)
-let rec listen t fn =
+let rec listen t ~header_size fn =
   match t.active with
   | true ->
-    let page = Io_page.get 1 in
+    let buf = Cstruct.create (t.mtu + header_size) in
     let process () =
-      read t page >|= function
-      | Ok buf              -> Lwt.async (fun () -> safe_apply fn buf) ; Ok ()
+      read t buf >|= function
+      | Ok buf              -> Lwt.async (fun () -> safe_apply fn buf); Ok ()
       | Error `Canceled     -> Error `Disconnected
       | Error `Disconnected -> t.active <- false ; Error `Disconnected
     in
     process () >>= (function
-        | Ok () -> (listen[@tailcall]) t fn
+        | Ok () -> (listen[@tailcall]) t ~header_size fn
         | Error e -> Lwt.return (Error e))
   | false -> Lwt.return (Ok ())
 
 (* Transmit a packet from a Cstruct.t *)
-let write t buffer =
-  let open Cstruct in
+let write t ~size fillf =
   (* Unfortunately we peek inside the cstruct type here: *)
   (* This is the interface to the cruel Lwt world with exceptions, we've to guard *)
-  Lwt.catch (fun () ->
-      Lwt_bytes.write t.dev buffer.buffer buffer.off buffer.len >|= fun len' ->
-      t.stats.tx_pkts <- Int32.succ t.stats.tx_pkts;
-      t.stats.tx_bytes <- Int64.add t.stats.tx_bytes (Int64.of_int buffer.len);
-      if len' <> buffer.len then Error (`Partial (t.id, len', buffer))
-      else Ok ())
-    (fun exn -> Lwt.return (Error (`Exn exn)))
-
-
-let writev t = function
-  | []     -> Lwt.return (Ok ())
-  | [page] -> write t page
-  | pages  ->
-    write t @@ Cstruct.concat pages
+  let buf = Cstruct.create size in
+  let len = fillf buf in
+  if len > size then
+    Lwt.return (Error `Invalid_length)
+  else
+    Lwt.catch (fun () ->
+        Lwt_bytes.write t.dev buf.Cstruct.buffer 0 len >|= fun len' ->
+        t.stats.tx_pkts <- Int32.succ t.stats.tx_pkts;
+        t.stats.tx_bytes <- Int64.add t.stats.tx_bytes (Int64.of_int len);
+        if len' <> len then Error (`Partial (t.id, len', buf))
+        else Ok ())
+      (fun exn -> Lwt.return (Error (`Exn exn)))
 
 let mac t = t.mac
 
@@ -177,4 +171,3 @@ let reset_stats_counters t =
   t.stats.rx_pkts  <- 0l;
   t.stats.tx_bytes <- 0L;
   t.stats.tx_pkts  <- 0l
-

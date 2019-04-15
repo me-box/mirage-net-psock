@@ -20,11 +20,8 @@
 
 include Mirage_net_lwt.S
 
-val connect : string -> t Lwt.t
+val connect: string -> t Lwt.t
 (** [connect dev] connects to the given network interface [dev]. *)
 
 val fd: t -> Lwt_unix.file_descr
 (** [fd t] is [t]'s underneath file descriptor. *)
-
-val mtu: t -> int
-(** [mtu t] is the MTU imposed by the link underneath. *)

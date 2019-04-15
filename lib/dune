@@ -1,0 +1,13 @@
+(library
+ (name        mirage_net_psock)
+ (public_name mirage-net-psock)
+ (libraries
+  cstruct
+  cstruct-lwt
+  io-page
+  io-page-unix
+  mirage-net-lwt
+  )
+ (c_names netif_stubs)
+ (wrapped false)
+ )

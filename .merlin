@@ -1,9 +1,3 @@
-PKG lwt
-PKG mirage
-PKG mirage-net
-PKG mirage-net-lwt
-PKG cstruct
-PKG io-page
-PKG topkg
-
-S lib
+PKG alcotest cstruct io-page lwt mirage mirage-net-lwt
+S lib/
+B _build/

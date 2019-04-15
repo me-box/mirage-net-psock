@@ -1,28 +1,30 @@
-opam-version: "1.2"
-maintainer:   "ql272@cl.cam.ac.uk"
-homepage:    "https://github.com/mirage/mirage-net-unix"
-bug-reports: "https://github.com/mirage/mirage-net-unix/issues"
-dev-repo:    "https://github.com/mirage/mirage-net-unix.git"
-license:     "ISC"
-doc:         "https://mirage.github.io/mirage-net-unix/"
+opam-version: "2.0"
+maintainer: "Richard Mortier <mort@cantab.net>"
+authors: [ "Qi Li" "Richard Mortier" ]
+license: "ISC"
+
+homepage:    "https://github.com/me-box/mirage-net-psock"
+dev-repo:    "git+https://github.com/me-box/mirage-net-psock.git"
+bug-reports: "https://github.com/me-box/mirage-net-psock/issues"
+doc:         "https://me-box.github.io/mirage-net-psock/"
 
 build: [
-  ["jbuilder" "subst"] {pinned}
-  ["jbuilder" "build" "-p" name "-j" jobs]
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
 ]
 
 depends: [
-  "jbuilder"       {build & >= "1.0+beta9"}
   "cstruct"        {>= "1.7.1"}
-  "lwt"            {>= "2.4.3"}
-  "ipaddr"         {>= "2.4.0"}
-  "mirage-net-lwt" {>= "1.0.0"}
+  "cstruct-lwt"
+  "dune"           {build}
   "io-page"        {>= "1.0.1"}
-  "result"
+  "io-page-unix"
+  "mirage-net-lwt" {>= "1.0.0"}
+  "ocaml"          {>= "4.07.1"}
 ]
 
 depexts: [
-  [["alpine"] ["linux-headers"]]
+  [["alpine"] ["linux-headers" "m4" "linux-vanilla-dev" "musl-dev"]]
 ]
 
-available: [ ocaml-version >= "4.02.3"]
+synopsis: "Support for Mirage network abstraction over `SOCK_RAW`"
